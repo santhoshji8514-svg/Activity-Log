@@ -140,6 +140,65 @@ h1{font-size:20px;font-weight:600;letter-spacing:-.3px;margin-bottom:2px;}
   border-radius:10px;font-size:12px;color:#4ade80;
 }
 
+
+/* BACKGROUND */
+.bg-layer{
+  position:fixed;inset:0;z-index:-1;
+  background-size:cover;background-position:center;background-repeat:no-repeat;
+  transition:all .4s;
+}
+.bg-overlay{
+  position:fixed;inset:0;z-index:-1;
+  background:rgba(0,0,0,0.45);
+  backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+  transition:all .4s;
+}
+
+/* Make cards semi-transparent when bg image is active */
+body.has-bg .s-card,
+body.has-bg .add-bar,
+body.has-bg .entry,
+body.has-bg .settings-group,
+body.has-bg .week-day-row,
+body.has-bg .summary-grid .s-card{
+  background:rgba(255,255,255,0.08)!important;
+  backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+  border-color:rgba(255,255,255,0.12)!important;
+}
+body.has-bg .view-tab{
+  background:rgba(255,255,255,0.08)!important;
+  border-color:rgba(255,255,255,0.12)!important;
+}
+body.has-bg{background:transparent!important;}
+
+/* Wallpaper picker */
+.wallpaper-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px;}
+.wallpaper-item{
+  height:70px;border-radius:8px;cursor:pointer;
+  border:2px solid transparent;background-size:cover;background-position:center;
+  transition:all .15s;position:relative;overflow:hidden;
+}
+.wallpaper-item:hover{border-color:var(--accent);}
+.wallpaper-item.active{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent);}
+.wallpaper-item .wp-label{
+  position:absolute;bottom:0;left:0;right:0;
+  font-size:9px;text-align:center;padding:3px;
+  background:rgba(0,0,0,0.5);color:#fff;
+}
+.upload-bg-btn{
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  width:100%;padding:10px;margin-top:8px;
+  background:var(--surface);border:1px dashed var(--border);
+  border-radius:8px;color:var(--muted);font-size:13px;cursor:pointer;
+  transition:all .15s;font-family:var(--sans);
+}
+.upload-bg-btn:hover{border-color:var(--accent);color:var(--text);}
+.remove-bg-btn{
+  font-size:12px;padding:5px 12px;border-radius:6px;
+  border:1px solid #f87171;background:transparent;
+  color:#f87171;cursor:pointer;margin-top:8px;
+}
+
 /* TOAST */
 .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#333;color:#fff;font-size:13px;padding:8px 18px;border-radius:20px;opacity:0;transition:opacity .3s;pointer-events:none;z-index:999;white-space:nowrap;}
 .toast.show{opacity:1;}
@@ -200,6 +259,8 @@ h1{font-size:20px;font-weight:600;letter-spacing:-.3px;margin-bottom:2px;}
 </head>
 <body>
 
+<div class="bg-layer" id="bgLayer"></div>
+<div class="bg-overlay" id="bgOverlay" style="display:none"></div>
 <div class="toast" id="toast"></div>
 <div class="view-tabs" id="viewTabs">
   <button class="view-tab active" onclick="switchView('log')">📋 Log</button>
@@ -483,19 +544,6 @@ function renderLog(c){
   }
   html+=`</div>`;
 
-  // End day banner/button - placed below the entries list
-  const dayEnded = isDayEnded();
-  if(dayEnded){
-    html += `<div class="day-ended-banner">
-      ✅ Day ended — next activity will start a new day
-      <button onclick="clearDayEnd()" style="margin-left:auto;background:none;border:none;color:#4ade80;cursor:pointer;font-size:11px;text-decoration:underline">Undo</button>
-    </div>`;
-  } else {
-    html += `<div class="end-day-wrap"><button class="end-day-btn" onclick="endDay()">
-      🏁 End my day
-    </button></div>`;
-  }
-
   c.innerHTML=html;
   document.getElementById('newActivity').addEventListener('keydown',e=>{if(e.key==='Enter')addEntry();});
 }
@@ -718,8 +766,27 @@ function renderSettings(c){
 
   <div style="display:flex;gap:8px;margin-top:8px">
     <button class="reset-btn" onclick="resetColors()">Reset all colors</button>
-  </div>`;
-  c.innerHTML=html;
+  </div>
+
+`; // close main html string
+
+  // Build wallpaper grid separately
+  let wpHtml = '<p class="section-title" style="margin-top:16px">Background & Wallpaper</p>';
+  wpHtml += '<div class="settings-group"><div class="settings-row" style="flex-direction:column;align-items:flex-start;gap:10px">';
+  wpHtml += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:12px 16px;">';
+  WALLPAPERS.forEach(wp => {
+    const isActive = currentBg && currentBg.id === wp.id;
+    const border = isActive ? '2px solid #7c6cfc' : '2px solid transparent';
+    wpHtml += `<div onclick="setWallpaper('${wp.id}')" style="height:64px;border-radius:8px;cursor:pointer;border:${border};background:${wp.gradient};position:relative;overflow:hidden;">
+      <div style="position:absolute;bottom:0;left:0;right:0;font-size:9px;text-align:center;padding:3px;background:rgba(0,0,0,0.5);color:#fff;">${wp.label}</div>
+    </div>`;
+  });
+  wpHtml += '</div>';
+  wpHtml += '<label class="upload-bg-btn">📷 Upload your own image<input type="file" accept="image/*" style="display:none" onchange="handleBgUpload(this)"/></label>';
+  if(currentBg) wpHtml += '<button class="remove-bg-btn" onclick="removeBg()">✕ Remove background</button>';
+  wpHtml += '</div></div>';
+
+  c.innerHTML = html + wpHtml;
 }
 
 function updateColor(key,hex){
@@ -830,7 +897,6 @@ function addEntry(){
   const durRaw=document.getElementById('newDur').value.trim();
   const cat=document.getElementById('newCat').value;
   if(!label){document.getElementById('newActivity').focus();return;}
-  activeDay=getCustomDayKey();
   if(!data[activeDay])data[activeDay]=[];
   data[activeDay].push({id:Date.now().toString(),time:time||'00:00',label,dur:parseDuration(durRaw),durRaw,cat});
   _lastChangedDay=activeDay;saveData();showToast('Saved ✓');
@@ -861,6 +927,79 @@ function saveEdit(id){
 function escHtml(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 
 applyTheme(currentTheme);
+
+/* ── BACKGROUND ── */
+const WALLPAPERS = [
+  {id:'wp1', label:'Aurora',    gradient:'linear-gradient(135deg,#1a1a2e,#16213e,#0f3460,#533483)'},
+  {id:'wp2', label:'Sunset',    gradient:'linear-gradient(135deg,#f093fb,#f5576c,#fda085,#f6d365)'},
+  {id:'wp3', label:'Ocean',     gradient:'linear-gradient(135deg,#0f2027,#203a43,#2c5364)'},
+  {id:'wp4', label:'Forest',    gradient:'linear-gradient(135deg,#134e5e,#71b280,#2d6a4f)'},
+  {id:'wp5', label:'Galaxy',    gradient:'linear-gradient(135deg,#0d0d0d,#1a0533,#2d0057,#4a0080)'},
+  {id:'wp6', label:'Candy',     gradient:'linear-gradient(135deg,#f8cdda,#1d2b64,#f8cdda,#1d2b64)'},
+  {id:'wp7', label:'Gold',      gradient:'linear-gradient(135deg,#1a1a1a,#b8860b,#1a1a1a,#daa520)'},
+  {id:'wp8', label:'Neon',      gradient:'linear-gradient(135deg,#000000,#0f0c29,#302b63,#24243e)'},
+  {id:'wp9', label:'Morning',   gradient:'linear-gradient(135deg,#ee9ca7,#ffdde1,#f5f7fa,#c3cfe2)'},
+];
+
+let currentBg = JSON.parse(localStorage.getItem('actlog_bg') || 'null');
+
+function applyBackground(){
+  const layer = document.getElementById('bgLayer');
+  const overlay = document.getElementById('bgOverlay');
+  if(!layer) return;
+  if(!currentBg){
+    layer.style.background = '';
+    layer.style.backgroundImage = '';
+    overlay.style.display = 'none';
+    document.body.classList.remove('has-bg');
+    return;
+  }
+  if(currentBg.type === 'gradient'){
+    layer.style.background = currentBg.value;
+    layer.style.backgroundImage = '';
+  } else if(currentBg.type === 'image'){
+    layer.style.backgroundImage = `url(${currentBg.value})`;
+    layer.style.background = '';
+  }
+  overlay.style.display = 'block';
+  document.body.classList.add('has-bg');
+}
+
+function setWallpaper(id){
+  const wp = WALLPAPERS.find(w=>w.id===id);
+  if(!wp) return;
+  currentBg = {type:'gradient', value:wp.gradient, id};
+  localStorage.setItem('actlog_bg', JSON.stringify(currentBg));
+  applyBackground();
+  showToast('Wallpaper applied ✓');
+  render();
+}
+
+function removeBg(){
+  currentBg = null;
+  localStorage.removeItem('actlog_bg');
+  applyBackground();
+  showToast('Background removed ✓');
+  render();
+}
+
+function handleBgUpload(input){
+  const file = input.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    currentBg = {type:'image', value:e.target.result, id:'custom'};
+    localStorage.setItem('actlog_bg', JSON.stringify(currentBg));
+    applyBackground();
+    showToast('Background set ✓');
+    render();
+  };
+  reader.readAsDataURL(file);
+}
+
+// Apply on load
+applyBackground();
+
 document.getElementById('prevWeek').onclick=()=>{weekOffset--;render();};
 document.getElementById('nextWeek').onclick=()=>{weekOffset++;render();};
 render();
